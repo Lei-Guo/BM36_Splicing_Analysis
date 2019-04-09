@@ -1,0 +1,55 @@
+module load python/2.7.14
+module load R/3.4.3
+
+#copy all BM36 fastq files
+find /sc/orga/projects/adineto/RAPiD_3.0/ -type f -name "BM_36_*.trimmed.fastq.gz" -exec cp {} /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/fastq_files \;
+
+
+#copy all BM36 junc files
+find /sc/orga/projects/adineto/RAPiD_3.0/ -type f -name "BM_36_*.junc" -exec cp {} /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis \;
+
+#count the number of the BM36 junc files
+ls -l /sc/orga/projects/adineto/RAPiD_3.0/ | grep -c BM_36
+
+#store junc file names in a file
+echo /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/junc_files_minghui/*.junc >> juncfile_names.txt
+
+#one name per line
+tr ' ' '\n' < juncfile_names.txt > t.txt
+mv t.txt juncfile_names.txt
+
+#cluster introns
+python /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/clustering/leafcutter_cluster.py -k -s -l 500000 -m 50 -j /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/junc_files_minghui/juncfile_names.txt -o test -r /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/
+
+#install leafcutter package in R
+#withr::with_libpaths("~/.Rlib",devtools::install_github("davidaknowles/leafcutter/leafcutter"))
+
+
+#install leafcutter
+install.packages(c("Rcpp", "rstan", "foreach", "ggplot2", "R.utils", "gridExtra", "reshape2", "Hmisc", "dplyr", "doMC", "optparse", "shiny", "intervals", "shinycssloaders", "DT", "gtable"))
+
+R CMD INSTALL --build . -l ~/.Rlib
+
+#make annotation file
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/gtf_to_exons.R /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/Homo_sapiens.GRCh38.92.gtf.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/grch38_exons.txt.gz
+
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/gtf_to_exons.R /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/gencode.v19.annotation.gtf.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/grch37_exons.txt.gz
+
+
+#differential splicing analysis (F.AD_M.AD)
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/leafcutter_ds.R -p 12 -o result_minghui -e /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/exon_file/gencode_v27_exons.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/test_perind_numers.counts_IDmatched_fad_mad.txt /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/test_diff_introns_fad_mad.txt
+
+
+#differential splicing analysis (F.AD_F.NL)
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/leafcutter_ds.R -p 12 -o result_minghui -e /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/exon_file/gencode_v27_exons.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/fad_fnl/test_perind_numers.counts_IDmatched_fad_fnl.txt /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/fad_fnl/test_diff_introns_fad_fnl.txt
+
+
+#differential splicing analysis (M.AD_M.NL)
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/leafcutter_ds.R -p 12 -o result_minghui -e /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/exon_file/gencode_v27_exons.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/mad_mnl/test_perind_numers.counts_IDmatched_mad_mnl.txt /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/mad_mnl/test_diff_introns_mad_mnl.txt
+
+
+#differential splicing analysis (F.NL_M.NL)
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/leafcutter_ds.R -p 12 -o result_minghui -e /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/exon_file/gencode_v27_exons.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/fnl_mnl/test_perind_numers.counts_IDmatched_fnl_mnl.txt /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/diff_splicing/fnl_mnl/test_diff_introns_fnl_mnl.txt
+
+#plot the differentially spliced clusters detected at an FDR of 10%.
+/sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter/scripts/ds_plots.R -e /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/exon_file/gencode_v27_exons.gz /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/test_perind_numers.counts_IDmatched_fad_mad.txt /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/test_diff_introns_fad_mad.txt /sc/orga/projects/zhangb03a/lei_guo/BM36_splicing_analysis/leafcutter_ds_cluster_significance.txt -f 0.1
